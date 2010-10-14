@@ -4,22 +4,22 @@ var fs = require("fs");
 
 var parser = new fastcgi.parser();
 
-parser.addListener("param", function(name, value) {
+parser.onParam = function(name, value) {
 	sys.puts("param\n" + name + ":" + value);
-});
+};
 
-parser.addListener("header", function(header) {
+parser.onHeader = function(header) {
 	sys.puts("header\n" + JSON.stringify(header, null, "\t"));
-});
+};
 
-parser.addListener("record", function(record) {
+parser.onRecord = function(record) {
 	sys.puts("record\n" + JSON.stringify(record, null, "\t"));
-});
+};
 
-parser.addListener("error", function(err) {
+parser.onError = function(err) {
 	sys.puts("error\n" + JSON.stringify(err, null, "\t"));
 	throw(err);
-});
+};
 
 var writer = new fastcgi.writer();
 
@@ -27,8 +27,8 @@ var message = "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 5\r\nCont
 
 // out parser
 writer.writeHeader({
-	"version": 1,
-	"type": 6,
+	"version": fastcgi.constants.version,
+	"type": fastcgi.constants.record.FCGI_STDOUT,
 	"recordId": 1,
 	"contentLength": message.length,
 	"paddingLength": 0
@@ -36,16 +36,16 @@ writer.writeHeader({
 writer.writeBody(message);
 parser.execute(writer.tobuffer());
 writer.writeHeader({
-	"version": 1,
-	"type": 6,
+	"version": fastcgi.constants.version,
+	"type": fastcgi.constants.record.FCGI_STDOUT,
 	"recordId": 1,
 	"contentLength": 0,
 	"paddingLength": 0
 });
 parser.execute(writer.tobuffer());
 writer.writeHeader({
-	"version": 1,
-	"type": 3,
+	"version": fastcgi.constants.version,
+	"type": fastcgi.constants.record.FCGI_END,
 	"recordId": 1,
 	"contentLength": 8,
 	"paddingLength": 0
@@ -56,25 +56,20 @@ writer.writeEnd({
 });
 parser.execute(writer.tobuffer());
 
-var maxbuff = "";
-for(var i=0; i<16231; i++) {
-	maxbuff += "0";
-}
-maxbuff = "hello";
-
 var params = [
-	["SCRIPT_FILENAME", "/scripts/test.js"],
-	["HTTP_USER_AGENT", maxbuff],
+	["SCRIPT_FILENAME", "/test.js"],
+	["HTTP_USER_AGENT", "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0; Supplied by blueyonder; .NET CLR 1.1.4322; .NET CLR 2.0.50215)"],
 	["HTTP_ACCEPT_ENCODING", "none"],
 	["HTTP_CONNECTION", "Keep-Alive"],
 	["HTTP_ACCEPT", "*/*"],
 	["HTTP_HOST", "shuttle.owner.net:82"]
 ];
 
+var paramlen = fastcgi.getParamLength(params);
 // in parser
 writer.writeHeader({
-	"version": 1,
-	"type": 1,
+	"version": fastcgi.constants.version,
+	"type": fastcgi.constants.record.FCGI_BEGIN,
 	"recordId": 1,
 	"contentLength": 8,
 	"paddingLength": 0
@@ -85,25 +80,25 @@ writer.writeBegin({
 });
 parser.execute(writer.tobuffer());
 writer.writeHeader({
-	"version": 1,
-	"type": 4,
+	"version": fastcgi.constants.version,
+	"type": fastcgi.constants.record.FCGI_PARAMS,
 	"recordId": 1,
-	"contentLength": fastcgi.getParamLength(params),
+	"contentLength": paramlen,
 	"paddingLength": 0
 });
 writer.writeParams(params);
 parser.execute(writer.tobuffer());
 writer.writeHeader({
-	"version": 1,
-	"type": 4,
+	"version": fastcgi.constants.version,
+	"type": fastcgi.constants.record.FCGI_PARAMS,
 	"recordId": 1,
 	"contentLength": 0,
 	"paddingLength": 0
 });
 parser.execute(writer.tobuffer());
 writer.writeHeader({
-	"version": 1,
-	"type": 5,
+	"version": fastcgi.constants.version,
+	"type": fastcgi.constants.record.FCGI_STDIN,
 	"recordId": 1,
 	"contentLength": 5,
 	"paddingLength": 0
@@ -111,8 +106,8 @@ writer.writeHeader({
 writer.writeBody("hello");
 parser.execute(writer.tobuffer());
 writer.writeHeader({
-	"version": 1,
-	"type": 5,
+	"version": fastcgi.constants.version,
+	"type": fastcgi.constants.record.FCGI_STDIN,
 	"recordId": 1,
 	"contentLength": 0,
 	"paddingLength": 0

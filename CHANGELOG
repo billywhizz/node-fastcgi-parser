@@ -1,3 +1,9 @@
+2010.10.14, Version 0.0.2
+	* Big speed improvements to buffer handling code (Andrew Johnston)
+	* fixed issue with signed binary numbers (Andrew Johnston)
+	* added callbacks for header and params (Andrew Johnston)
+	* changed events to callbacks for better performance (Andrew Johnston)
+	* reorganised directories (Andrew Johnston)
 2010.10.13, Version 0.0.1
-   * Initial Commit (Andrew Johnston)
+	* Initial Commit (Andrew Johnston)
  
