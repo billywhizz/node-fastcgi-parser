@@ -4,12 +4,20 @@ var fs = require("fs");
 
 var parser = new fastcgi.parser();
 
+parser.addListener("param", function(name, value) {
+	sys.puts("param\n" + name + ":" + value);
+});
+
+parser.addListener("header", function(header) {
+	sys.puts("header\n" + JSON.stringify(header, null, "\t"));
+});
+
 parser.addListener("record", function(record) {
-	sys.puts(JSON.stringify(record, null, "\t"));
+	sys.puts("record\n" + JSON.stringify(record, null, "\t"));
 });
 
 parser.addListener("error", function(err) {
-	sys.puts("error: " + JSON.stringify(err, null, "\t"));
+	sys.puts("error\n" + JSON.stringify(err, null, "\t"));
 	throw(err);
 });
 
@@ -52,6 +60,7 @@ var maxbuff = "";
 for(var i=0; i<16231; i++) {
 	maxbuff += "0";
 }
+maxbuff = "hello";
 
 var params = [
 	["SCRIPT_FILENAME", "/scripts/test.js"],
@@ -91,6 +100,15 @@ writer.writeHeader({
 	"contentLength": 0,
 	"paddingLength": 0
 });
+parser.execute(writer.tobuffer());
+writer.writeHeader({
+	"version": 1,
+	"type": 5,
+	"recordId": 1,
+	"contentLength": 5,
+	"paddingLength": 0
+});
+writer.writeBody("hello");
 parser.execute(writer.tobuffer());
 writer.writeHeader({
 	"version": 1,
