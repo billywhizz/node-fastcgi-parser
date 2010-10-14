@@ -2,7 +2,7 @@ var sys = require("sys");
 var net = require("net");
 var fastcgi = require("../lib/fastcgi");
 
-var output = "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 5\r\nContent-Type: text/plain\r\n\r\nhello";
+var output = "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 10\r\nContent-Type: text/plain\r\n\r\n0123456789";
 
 var recordId = 0;
 var count = 0;
@@ -21,16 +21,13 @@ var fcgid = net.createServer(function (socket) {
 		socket.parser = new fastcgi.parser();
 		socket.writer = new fastcgi.writer();
 		socket.keepalive = false;
-		socket.parser.addListener("error", function(exception) {
+		socket.addListener("close", function() {
+			connections--;
+		});
+		socket.parser.onError = function(exception) {
 			sys.puts(JSON.stringify(exception, null, "\t"));
-		});
-		socket.parser.addListener("end", function() {
-			connections--;
-		});
-		socket.parser.addListener("close", function() {
-			connections--;
-		});
-		socket.parser.addListener("record", function(record) {
+		};
+		socket.parser.onRecord = function(record) {
 			recordId = record.header.recordId;
 			count++;
 			switch(record.header.type) {
@@ -76,11 +73,12 @@ var fcgid = net.createServer(function (socket) {
 					}
 					break;
 			}
-		});
+		};
 	});
 
 });
 fcgid.listen("/tmp/nginx.sock");
+require("fs").chmodSync("/tmp/nginx.sock", 777);
 
 var then = new Date().getTime();	
 var last = 0;

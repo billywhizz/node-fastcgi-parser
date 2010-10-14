@@ -4,7 +4,7 @@ var fastcgi = require("../lib/fastcgi");
 
 var params = [
 	["SCRIPT_FILENAME", "/test.js"],
-	["HTTP_USER_AGENT", "tester"],
+	["HTTP_USER_AGENT", "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0; Supplied by blueyonder; .NET CLR 1.1.4322; .NET CLR 2.0.50215)"],
 	["HTTP_ACCEPT_ENCODING", "none"],
 	["HTTP_CONNECTION", "Keep-Alive"],
 	["HTTP_ACCEPT", "*/*"],
@@ -77,16 +77,16 @@ connection.ondata = function (buffer, start, end) {
 connection.addListener("connect", function() {
 	connection.writer = new fastcgi.writer();
 	connection.parser = new fastcgi.parser();
-	connection.parser.addListener("record", function(record) {
+	connection.parser.onRecord = function(record) {
 		recordId = record.header.recordId;
 		count++;
 		if(record.header.type == fastcgi.constants.record.FCGI_END) {
 			sendRequest(connection);
 		}
-	});
-	connection.parser.addListener("error", function(err) {
+	};
+	connection.parser.onError = function(err) {
 		sys.puts(JSON.stringify(err, null, "\t"));
-	});
+	};
 	sendRequest(connection);
 });
 
