@@ -9,7 +9,7 @@ var bytes = 0;
 var parser = new HTTPParser(process.ARGV[4]);
 var log = fs.createReadStream(process.ARGV[2], {
 	"flags": "r",
-	"encoding": "binary",
+	"encoding": null,
 	"mode": 0755,
 	"bufferSize": process.ARGV[3]
 });

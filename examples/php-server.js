@@ -1,4 +1,3 @@
-var sys = require("sys");
 var net = require("net");
 var fastcgi = require("../lib/fastcgi");
 
@@ -18,14 +17,29 @@ You can then run this example to fire requests at the php server
 You will need to change the SCRIPT_FILENAME param below to the full path of a script that is available to the php application
 */
 var params = [
-	["SCRIPT_FILENAME", "/source/test.php"],
-	["HTTP_USER_AGENT", "tester"],
+	["SCRIPT_FILENAME", "/source/phpinfo.php"],
+	["QUERY_STRING", ""],
+	["REQUEST_METHOD", "GET"],
+	["CONTENT_TYPE", ""],
+	["CONTENT_LENGTH", ""],
+	["SCRIPT_NAME", "/test.php"],
+	["REQUEST_URI", "/test.php"],
+	["DOCUMENT_URI", "/test.php"],
+	["DOCUMENT_ROOT", "/source"],
+	["SERVER_PROTOCOL", "HTTP/1.1"],
+	["GATEWAY_INTERFACE", "CGI/1.1"],
+	["SERVER_SOFTWARE", "nginx/0.7.67"],
+	["REMOTE_ADDR", "10.11.12.8"],
+	["REMOTE_PORT", "4335"],
+	["SERVER_ADDR", "10.11.12.8"],
+	["SERVER_PORT", "82"],
+	["SERVER_NAME", "_"],
+	["REDIRECT_STATUS", "200"],
+	["HTTP_USER_AGENT", "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0; Supplied by blueyonder; .NET CLR 1.1.4322; .NET CLR 2.0.50215)"],
 	["HTTP_ACCEPT_ENCODING", "none"],
 	["HTTP_CONNECTION", "Keep-Alive"],
 	["HTTP_ACCEPT", "*/*"],
-	["DOCUMENT_ROOT", "/source/"],
-	["HTTP_HOST", "shuttle.owner.net:82"],
-	["PHP_FCGI_MAX_REQUESTS", "1000000"]
+	["HTTP_HOST", "shuttle.owner.net:82"]
 ];
 
 var reqid = 0;
@@ -42,7 +56,7 @@ function sendRequest(connection) {
 		});
 		connection.writer.writeBegin({
 			"role": fastcgi.constants.role.FCGI_RESPONDER,
-			"flags": fastcgi.constants.keepalive.ON
+			"flags": fastcgi.constants.keepalive.OFF
 		});
 		connection.write(connection.writer.tobuffer());
 		connection.writer.writeHeader({
@@ -85,7 +99,7 @@ function client() {
 	connection.setTimeout(0);
 	
 	connection.ondata = function (buffer, start, end) {
-		//sys.puts(JSON.stringify(buffer.slice(start, end), null, "\t"));
+		//console.log(JSON.stringify(buffer.slice(start, end), null, "\t"));
 		connection.parser.execute(buffer.slice(start, end));
 	};
 	
@@ -93,15 +107,19 @@ function client() {
 		connection.writer = new fastcgi.writer();
 		connection.parser = new fastcgi.parser();
 		connection.parser.onRecord = function(record) {
-			//sys.puts(JSON.stringify(record, null, "\t"));
+			//console.log(JSON.stringify(record, null, "\t"));
 			count++;
 			recordId = record.header.recordId;
-			if(record.header.type == fastcgi.constants.record.FCGI_END) {
+		};
+
+		connection.parser.onHeader = function(header) {
+			if(header.type == fastcgi.constants.record.FCGI_STDOUT) {
 				sendRequest(connection);
 			}
 		};
+		
 		connection.parser.onError = function(err) {
-			sys.puts(JSON.stringify(err, null, "\t"));
+			console.log(JSON.stringify(err, null, "\t"));
 		};
 		sendRequest(connection);
 	});
@@ -111,25 +129,27 @@ function client() {
 	});
 	
 	connection.addListener("end", function() {
+		//console.log("end");
+		connection.destroy();
 	});
 	
 	connection.addListener("close", function() {
-		connection.end();
 		setTimeout(function() {
-			connection.connect("/tmp/php.sock);
-		}, 1000);
+			//console.log("reconnect");
+			//connection.connect("/tmp/nginx.sock");
+			connection.connect(6000, "icms.owner.net");
+		}, 0);
 	});
 	
 	connection.addListener("error", function(exception) {
-		sys.puts(JSON.stringify(exception));
+		console.log(JSON.stringify(exception));
 		connection.end();
 	});
 	
-	connection.connect("/tmp/php.sock");
+	connection.connect(6000, "icms.owner.net");
 }
-for(var i=0; i< 1; i++) {
-	client();
-}
+
+client();
 
 var then = new Date().getTime();	
 var last = 0;
@@ -137,7 +157,7 @@ setInterval(function() {
 	var now = new Date().getTime();
 	var elapsed = now - then;
 	var rps = count - last;
-	sys.puts("Record: " + recordId + ", Count: " + count + ", RPS: " + rps/(elapsed/1000));
+	console.log("Record: " + recordId + ", Count: " + count + ", RPS: " + rps/(elapsed/1000));
 	then = new Date().getTime();
 	last = count;
 }, 1000);

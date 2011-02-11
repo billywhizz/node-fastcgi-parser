@@ -1,4 +1,3 @@
-var sys = require("sys");
 var net = require("net");
 var fastcgi = require("../lib/fastcgi");
 
@@ -11,7 +10,14 @@ var params = [
 	["HTTP_HOST", "shuttle.owner.net:82"]
 ];
 
+var bytesin = 0;
+var bytesout = 0;
 var reqid = 0;
+
+function writeSocket(socket, buffer) {
+	bytesout += buffer.length;
+	socket.write(buffer);
+}
 
 function sendRequest(connection) {
 	reqid++;
@@ -26,7 +32,7 @@ function sendRequest(connection) {
 		"role": fastcgi.constants.role.FCGI_RESPONDER,
 		"flags": fastcgi.constants.keepalive.ON
 	});
-	connection.write(connection.writer.tobuffer());
+	writeSocket(connection, connection.writer.tobuffer());
 	connection.writer.writeHeader({
 		"version": fastcgi.constants.version,
 		"type": fastcgi.constants.record.FCGI_PARAMS,
@@ -35,7 +41,7 @@ function sendRequest(connection) {
 		"paddingLength": 0
 	});
 	connection.writer.writeParams(params);
-	connection.write(connection.writer.tobuffer());
+	writeSocket(connection, connection.writer.tobuffer());
 	connection.writer.writeHeader({
 		"version": fastcgi.constants.version,
 		"type": fastcgi.constants.record.FCGI_PARAMS,
@@ -43,7 +49,7 @@ function sendRequest(connection) {
 		"contentLength": 0,
 		"paddingLength": 0
 	});
-	connection.write(connection.writer.tobuffer());
+	writeSocket(connection, connection.writer.tobuffer());
 	connection.writer.writeHeader({
 		"version": fastcgi.constants.version,
 		"type": fastcgi.constants.record.FCGI_STDIN,
@@ -52,7 +58,7 @@ function sendRequest(connection) {
 		"paddingLength": 0
 	});
 	connection.writer.writeBody("hello");
-	connection.write(connection.writer.tobuffer());
+	writeSocket(connection, connection.writer.tobuffer());
 	connection.writer.writeHeader({
 		"version": fastcgi.constants.version,
 		"type": fastcgi.constants.record.FCGI_STDIN,
@@ -60,7 +66,7 @@ function sendRequest(connection) {
 		"contentLength": 0,
 		"paddingLength": 0
 	});
-	connection.write(connection.writer.tobuffer());
+	writeSocket(connection, connection.writer.tobuffer());
 }
 
 var count = 0;
@@ -71,6 +77,7 @@ connection.setNoDelay(true);
 connection.setTimeout(0);
 
 connection.ondata = function (buffer, start, end) {
+	bytesin += (end-start);
 	connection.parser.execute(buffer.slice(start, end));
 };
 
@@ -85,7 +92,7 @@ connection.addListener("connect", function() {
 		}
 	};
 	connection.parser.onError = function(err) {
-		sys.puts(JSON.stringify(err, null, "\t"));
+		console.log(JSON.stringify(err, null, "\t"));
 	};
 	sendRequest(connection);
 });
@@ -99,7 +106,7 @@ connection.addListener("close", function() {
 });
 
 connection.addListener("error", function(exception) {
-	sys.puts(JSON.stringify(exception));
+	console.log(JSON.stringify(exception));
 });
 
 connection.connect("/tmp/nginx.sock");
@@ -108,9 +115,11 @@ var then = new Date().getTime();
 var last = 0;
 setInterval(function() {
 	var now = new Date().getTime();
-	var elapsed = now - then;
+	var elapsed = (now - then)/1000;
 	var rps = count - last;
-	sys.puts("Record: " + recordId + ", Count: " + count + ", RPS: " + rps/(elapsed/1000));
+	console.log("InRate: " + parseInt((((bytesin)/elapsed)*8)/(1024*1024)) + ", OutRate: " + parseInt((((bytesout)/elapsed)*8)/(1024*1024)) + ", Record: " + recordId + ", Count: " + count + ", RPS: " + rps/elapsed);
 	then = new Date().getTime();
 	last = count;
+	bytesin = 0;
+	bytesout = 0;
 }, 1000);

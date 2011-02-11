@@ -1,4 +1,3 @@
-var sys = require("sys");
 var net = require("net");
 var fastcgi = require("../lib/fastcgi");
 
@@ -9,10 +8,19 @@ var count = 0;
 var connections = 0;
 var gconnections = 0;
 
+var bytesin = 0;
+var bytesout = 0;
+
+function writeSocket(socket, buffer) {
+	bytesout += buffer.length;
+	socket.write(buffer);
+}
+
 var fcgid = net.createServer(function (socket) {
     socket.setTimeout(0);
     socket.setNoDelay(true);
 	socket.ondata = function (buffer, start, end) {
+		bytesin += (end-start);
 		socket.parser.execute(buffer.slice(start, end));
 	};
 	socket.addListener("connect", function() {
@@ -25,7 +33,7 @@ var fcgid = net.createServer(function (socket) {
 			connections--;
 		});
 		socket.parser.onError = function(exception) {
-			sys.puts(JSON.stringify(exception, null, "\t"));
+			console.log(JSON.stringify(exception, null, "\t"));
 		};
 		socket.parser.onRecord = function(record) {
 			recordId = record.header.recordId;
@@ -46,7 +54,7 @@ var fcgid = net.createServer(function (socket) {
 							"paddingLength": 0
 						});
 						socket.writer.writeBody(output);
-						socket.write(socket.writer.tobuffer());
+						writeSocket(socket, socket.writer.tobuffer());
 						socket.writer.writeHeader({
 							"version": fastcgi.constants.version,
 							"type": fastcgi.constants.record.FCGI_STDOUT,
@@ -54,7 +62,7 @@ var fcgid = net.createServer(function (socket) {
 							"contentLength": 0,
 							"paddingLength": 0
 						});
-						socket.write(socket.writer.tobuffer());
+						writeSocket(socket, socket.writer.tobuffer());
 						socket.writer.writeHeader({
 							"version": fastcgi.constants.version,
 							"type": fastcgi.constants.record.FCGI_END,
@@ -66,7 +74,7 @@ var fcgid = net.createServer(function (socket) {
 							"status": 0,
 							"protocolStatus": 200
 						});
-						socket.write(socket.writer.tobuffer());
+						writeSocket(socket, socket.writer.tobuffer());
 						if(!socket.keepalive) {
 							socket.end();
 						}
@@ -78,15 +86,17 @@ var fcgid = net.createServer(function (socket) {
 
 });
 fcgid.listen("/tmp/nginx.sock");
-require("fs").chmodSync("/tmp/nginx.sock", 777);
 
 var then = new Date().getTime();	
 var last = 0;
+
 setInterval(function() {
 	var now = new Date().getTime();
-	var elapsed = now - then;
+	var elapsed = (now - then)/1000;
 	var rps = count - last;
-	sys.puts("Record: " + recordId + ", Count: " + count + ", RPS: " + rps/(elapsed/1000) + ", A/Conn: " + connections + ", T/Conn: " + gconnections);
+	console.log("InRate: " + parseInt((((bytesin)/elapsed)*8)/(1024*1024)) + ", OutRate: " + parseInt((((bytesout)/elapsed)*8)/(1024*1024)) + ", Record: " + recordId + ", Count: " + count + ", RPS: " + rps/elapsed + ", A/Conn: " + connections + ", T/Conn: " + gconnections);
 	then = new Date().getTime();
 	last = count;
+	bytesin = 0;
+	bytesout = 0;
 }, 1000);

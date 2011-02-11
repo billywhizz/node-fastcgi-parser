@@ -2,7 +2,7 @@
 
 var util = require('util');
 var fs = require("fs");
-var IOWatcher = process.IOWatcher;
+var IOWatcher = process.binding('io_watcher').IOWatcher;
 var net = require("net");
 var fastcgi = require("../lib/fastcgi");
 
@@ -16,24 +16,24 @@ process.on('uncaughtException', function (err) {
 	log.write('Caught exception: ' + JSON.stringify(err, null, "\t") + "\n");
 });
 
-var output = "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 10\r\nContent-Type: text/plain\r\n\r\n0123456789";
+var output = "HTTP/1.1 200 OK\r\nContent-Length: 10\r\nContent-Type: text/plain\r\n\r\n0123456789";
 
 watcher = new IOWatcher();
 watcher.callback = function() {
 	var peerInfo = process.binding('net').accept(0);
 	clientfd = peerInfo.fd;
-	log.write("accept: " + JSON.stringify(peerInfo, null, "\t") + "\n");
+	//log.write("accept: " + JSON.stringify(peerInfo, null, "\t") + "\n");
 	var s = new net.Stream(clientfd);
 	var parser = new fastcgi.parser();
 	var writer = new fastcgi.writer();
 
 	parser.onError = function(exception) {
-		sys.puts(JSON.stringify(exception, null, "\t"));
+		log.write(JSON.stringify(exception, null, "\t"));
 	};
 
 	parser.onRecord = function(record) {
 		recordId = record.header.recordId;
-		log.write("record: [\n" + JSON.stringify(record, null, "\t") + "]\n");
+		//log.write("record: [\n" + JSON.stringify(record, null, "\t") + "]\n");
 		switch(record.header.type) {
 			case fastcgi.constants.record.FCGI_BEGIN:
 				s.keepalive = (record.body.flags == 1);

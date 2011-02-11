@@ -1,0 +1,1 @@
+cp lib/*.js /usr/local/lib/node/
