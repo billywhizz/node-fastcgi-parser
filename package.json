@@ -6,6 +6,9 @@
 	"author": "Andrew Johnston <apjohnsto@gmail.com>",
 	"main": "./lib/fastcgi",
 	"engines": { "node": ">= 0.2.0" },
+	"dependencies": {
+		"vows": ">= 0.5.6"
+	},
 	"repository" : {
         "type" : "git",
          "url" : "https://github.com/billywhizz/node-fastcgi-parser.git"
