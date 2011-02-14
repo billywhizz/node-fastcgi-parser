@@ -11,8 +11,13 @@ var params = [
 	["TEST4", ""],
 ];
 
+var paramsAssoc = {
+	TEST: "hello",
+	LOLLIES: "yespls"
+};
+
 var testString = "This is a test string to be put through an FCGI_STDOUT record.";
-var imageData = require("fs").readFileSync(require("path").join(__dirname, "fixtures", "test.png"))
+var imageData = require("fs").readFileSync(require("path").join(__dirname, "fixtures", "test.png"));
 
 var createParamsRecordTests = function() {
 	var context = {
@@ -35,11 +40,11 @@ var createParamsRecordTests = function() {
 		context["contains param " + paramName] = function(record) {
 			assert.isString(record.body.params[paramName]);
 			assert.equal(record.body.params[paramName], paramValue);
-		}
+		};
 	});
 	
 	return context;
-}
+};
 
 vows.describe("FCGI Library").addBatch({
 	"when writing a FCGI_Begin record": {
@@ -194,6 +199,77 @@ vows.describe("FCGI Library").addBatch({
 				for(var i = 0; i < record.body.length; i++) {
 					assert.equal(record.body[i], imageData[i], "Octet at index " + i + " does not match.");
 				}
+			}
+		}
+	}
+}).export(module);
+
+vows.describe("FCGI Library (higher-level)").addBatch({
+	"when writing a FCGI_BEGIN record": {
+		topic: function() {
+			writer.writeRecord(new fastcgi.records.BEGIN(fastcgi.constants.role.FCGI_FILTER, 123), 15);
+			return writer.tobuffer();
+		},
+		
+		"we get a valid Buffer": function(topic) {
+			assert.isObject(topic);
+			assert.instanceOf(topic, Buffer);
+		},
+		
+		"and parsing it again": {
+			topic: function(topic) {
+				var parser = new fastcgi.Client();
+				parser.encoding = "binary";
+				parser.onRecord = function(record, requestId) {
+					this.callback(null, {record: record, requestId: requestId});
+				}.bind(this);
+				parser.execute(topic);
+			},
+			
+			"gives us a valid record": function(topic) {
+				assert.isObject(topic.record);
+				assert.instanceOf(topic.record, fastcgi.records.BEGIN);
+			},
+
+			"and a valid request id": function(topic) {
+				assert.isNumber(topic.requestId);
+				assert.equal(topic.requestId, 15);
+			},
+			
+			"with the correct data": function(topic) {
+				assert.equal(topic.record.role, fastcgi.constants.role.FCGI_FILTER);
+				assert.equal(topic.record.flags, 123);
+			}
+		}
+	},
+	
+	"when writing a FCGI_PARAMS record": {
+		topic: function() {
+			writer.writeRecord(new fastcgi.records.PARAMS(paramsAssoc), 15);
+	
+			return writer.tobuffer();
+		},
+		
+		"and parsing it again": {
+			topic: function(topic) {
+				var parser = new fastcgi.Client();
+				parser.encoding = "binary";
+				parser.onRecord = function(record, requestId) {
+					this.callback(null, {record: record, requestId: requestId});
+				}.bind(this);
+				parser.execute(topic);
+			},
+			
+			"we get the correct record": function(topic) {
+				assert.instanceOf(topic.record, fastcgi.records.PARAMS);
+			},
+			
+			"with the correct parameters": function(topic) {
+				var topicParams = topic.record.getObject();
+				Object.keys(paramsAssoc).forEach(function(paramName) {
+					assert.isString(topicParams[paramName], "Record did not include param " + paramName);
+					assert.equal(topicParams[paramName], paramsAssoc[paramName], "Param " + paramName + " had incorrect value.");
+				});
 			}
 		}
 	}
