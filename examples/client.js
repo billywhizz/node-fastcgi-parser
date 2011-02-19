@@ -7,109 +7,125 @@ var params = [
 	["HTTP_ACCEPT_ENCODING", "none"],
 	["HTTP_CONNECTION", "Keep-Alive"],
 	["HTTP_ACCEPT", "*/*"],
+	["HTTP_METHOD", "GET"],
 	["HTTP_HOST", "shuttle.owner.net:82"]
 ];
 
+var payload = new Buffer("hello");
 var bytesin = 0;
 var bytesout = 0;
 var reqid = 0;
+var keepalive = true;
+
+var clients = parseInt(process.ARGV[2] || 1);
+var host = null;
+var port = "/tmp/nginx.sock";
 
 function writeSocket(socket, buffer) {
 	bytesout += buffer.length;
 	socket.write(buffer);
 }
 
-function sendRequest(connection) {
-	reqid++;
-	connection.writer.writeHeader({
-		"version": fastcgi.constants.version,
-		"type": fastcgi.constants.record.FCGI_BEGIN,
-		"recordId": reqid,
-		"contentLength": 8,
-		"paddingLength": 0
-	});
-	connection.writer.writeBegin({
-		"role": fastcgi.constants.role.FCGI_RESPONDER,
-		"flags": fastcgi.constants.keepalive.ON
-	});
-	writeSocket(connection, connection.writer.tobuffer());
-	connection.writer.writeHeader({
-		"version": fastcgi.constants.version,
-		"type": fastcgi.constants.record.FCGI_PARAMS,
-		"recordId": reqid,
-		"contentLength": fastcgi.getParamLength(params),
-		"paddingLength": 0
-	});
-	connection.writer.writeParams(params);
-	writeSocket(connection, connection.writer.tobuffer());
-	connection.writer.writeHeader({
-		"version": fastcgi.constants.version,
-		"type": fastcgi.constants.record.FCGI_PARAMS,
-		"recordId": reqid,
-		"contentLength": 0,
-		"paddingLength": 0
-	});
-	writeSocket(connection, connection.writer.tobuffer());
-	connection.writer.writeHeader({
-		"version": fastcgi.constants.version,
-		"type": fastcgi.constants.record.FCGI_STDIN,
-		"recordId": reqid,
-		"contentLength": 5,
-		"paddingLength": 0
-	});
-	connection.writer.writeBody("hello");
-	writeSocket(connection, connection.writer.tobuffer());
-	connection.writer.writeHeader({
-		"version": fastcgi.constants.version,
-		"type": fastcgi.constants.record.FCGI_STDIN,
-		"recordId": reqid,
-		"contentLength": 0,
-		"paddingLength": 0
-	});
-	writeSocket(connection, connection.writer.tobuffer());
-}
-
 var count = 0;
 var recordId = 0;
 
-var connection = new net.Stream();
-connection.setNoDelay(true);
-connection.setTimeout(0);
-
-connection.ondata = function (buffer, start, end) {
-	bytesin += (end-start);
-	connection.parser.execute(buffer.slice(start, end));
-};
-
-connection.addListener("connect", function() {
-	connection.writer = new fastcgi.writer();
-	connection.parser = new fastcgi.parser();
-	connection.parser.onRecord = function(record) {
-		recordId = record.header.recordId;
-		count++;
-		if(record.header.type == fastcgi.constants.record.FCGI_END) {
-			sendRequest(connection);
+function client() {
+	var connection = new net.Stream();
+	connection.setNoDelay(false);
+	connection.setTimeout(0);
+	
+	connection.addListener("connect", function() {
+		var writer = new fastcgi.writer();
+		writer.encoding = "binary";
+		var parser = new fastcgi.parser();
+		parser.encoding = "binary";
+	
+		var header = {
+			"version": fastcgi.constants.version,
+			"type": fastcgi.constants.record.FCGI_BEGIN,
+			"recordId": 0,
+			"contentLength": 0,
+			"paddingLength": 0
+		};	
+	
+		var begin = {
+			"role": fastcgi.constants.role.FCGI_RESPONDER,
+			"flags": keepalive?fastcgi.constants.keepalive.ON:fastcgi.constants.keepalive.OFF
 		}
-	};
-	connection.parser.onError = function(err) {
-		console.log(JSON.stringify(err, null, "\t"));
-	};
-	sendRequest(connection);
-});
+	
+		var paramlen = fastcgi.getParamLength(params);
+		var FCGI_BEGIN = fastcgi.constants.record.FCGI_BEGIN;
+		var FCGI_PARAMS = fastcgi.constants.record.FCGI_PARAMS;
+		var FCGI_STDIN = fastcgi.constants.record.FCGI_STDIN;
+		var FCGI_END = fastcgi.constants.record.FCGI_END;
+		
+		connection.ondata = function (buffer, start, end) {
+			bytesin += (end-start);
+			parser.execute(buffer, start, end);
+		};
+		
+		function sendRequest() {
+			header.type = FCGI_BEGIN;
+			header.recordId = reqid++;
+			header.contentLength = 8;
+			writer.writeHeader(header);
+			writer.writeBegin(begin);
+			writeSocket(connection, writer.tobuffer());
+			header.type = FCGI_PARAMS;
+			header.contentLength = paramlen;
+			writer.writeHeader(header);
+			writer.writeParams(params);
+			writeSocket(connection, writer.tobuffer());
+			header.contentLength = 0;
+			writer.writeHeader(header);
+			writeSocket(connection, writer.tobuffer());
+			header.type = FCGI_STDIN;
+			//header.contentLength = 5;
+			//writer.writeHeader(header);
+			//writer.writeBody(payload);
+			//writeSocket(connection, writer.tobuffer());
+			header.contentLength = 0;
+			writer.writeHeader(header);
+			writeSocket(connection, writer.tobuffer());
+			if(!keepalive) connection.end();
+		}
+	
+		parser.onRecord = function(record) {
+			recordId = record.header.recordId;
+			if(record.header.type == FCGI_END) {
+				count++;
+				if(keepalive) sendRequest(connection);
+			}
+		};
+		parser.onError = function(err) {
+			console.log(JSON.stringify(err, null, "\t"));
+		};
+		sendRequest(connection);
+	});
+	
+	connection.addListener("timeout", function() {
+		connection.end();
+	});
+	
+	connection.addListener("close", function() {
+		setTimeout(function() {
+			connection.connect(port, host);
+		}, 500);
+	});
+	
+	connection.addListener("end", function() {
+	});
+	
+	connection.addListener("error", function(exception) {
+		console.log(JSON.stringify(exception));
+	});
+	
+	connection.connect(port, host);
+}
 
-connection.addListener("timeout", function() {
-	connection.end();
-});
-
-connection.addListener("close", function() {
-	connection.end();
-});
-
-connection.addListener("error", function(exception) {
-	console.log(JSON.stringify(exception));
-});
-
-connection.connect("/tmp/nginx.sock");
+while(clients--) {
+	setTimeout(client, 200);
+}
 
 var then = new Date().getTime();	
 var last = 0;
