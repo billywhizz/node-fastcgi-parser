@@ -17,15 +17,17 @@ You can then run this example to fire requests at the php server
 You will need to change the SCRIPT_FILENAME param below to the full path of a script that is available to the php application
 */
 var params = [
-	["SCRIPT_FILENAME", "/source/test.php"],
+	["SCRIPT_FILENAME", "/var/www/html/www.permanentrevolution.net/index.php"],
 	["QUERY_STRING", ""],
 	["REQUEST_METHOD", "GET"],
 	["CONTENT_TYPE", ""],
 	["CONTENT_LENGTH", ""],
-	["SCRIPT_NAME", "/test.php"],
-	["REQUEST_URI", "/test.php"],
-	["DOCUMENT_URI", "/test.php"],
-	["DOCUMENT_ROOT", "/source"],
+	["SCRIPT_NAME", "/index.php"],
+	["REQUEST_URI", "/index.php"],
+	["QUERY_STRING", ""],
+	["DOCUMENT_URI", "/index.php"],
+	["DOCUMENT_ROOT", "/var/www/html"],
+	["PHP_SELF", "/index.php"],
 	["SERVER_PROTOCOL", "HTTP/1.1"],
 	["GATEWAY_INTERFACE", "CGI/1.1"],
 	["SERVER_SOFTWARE", "nginx/0.7.67"],
@@ -39,7 +41,7 @@ var params = [
 	["HTTP_ACCEPT_ENCODING", "none"],
 	["HTTP_CONNECTION", "Keep-Alive"],
 	["HTTP_ACCEPT", "*/*"],
-	["HTTP_HOST", "shuttle.owner.net:82"]
+	["HTTP_HOST", "pr.icms.owner.net:82"]
 ];
 
 var requests = 0;
@@ -58,6 +60,7 @@ function client() {
 	var FCGI_RESPONDER = fastcgi.constants.role.FCGI_RESPONDER;
 	var FCGI_BEGIN = fastcgi.constants.record.FCGI_BEGIN;
 	var FCGI_STDIN = fastcgi.constants.record.FCGI_STDIN;
+	var FCGI_STDOUT = fastcgi.constants.record.FCGI_STDOUT;
 	var FCGI_PARAMS = fastcgi.constants.record.FCGI_PARAMS;
 	var FCGI_END = fastcgi.constants.record.FCGI_END;
 	var header = {
@@ -142,8 +145,11 @@ function client() {
 		writer.encoding = "binary";
 		parser = new fastcgi.parser();
 		parser.encoding = "binary";
-
+		//var body = "";
+		
 		parser.onRecord = function(record) {
+			//if(record.header.type == FCGI_STDOUT) record.body = body
+			//console.log(record);
 			if(record.header.type == FCGI_END) {
 				responses++;
 			}
@@ -151,6 +157,7 @@ function client() {
 		};
 
 		parser.onHeader = function(header) {
+			body = "";
 			if(keepalive) {
 				if(header.recordId != _recid) {
 					_recid = header.recordId;
@@ -162,6 +169,14 @@ function client() {
 		parser.onError = function(err) {
 			console.log(JSON.stringify(err, null, "\t"));
 		};
+
+/*		
+		parser.onBody = function(buffer, start, end) {
+			body += buffer.toString("utf8", start, end);
+			//process.stdout.write(buffer.slice(start, end));
+		};
+*/
+		
 		sendRequest(connection);
 	});
 	
@@ -174,8 +189,8 @@ function client() {
 	
 	connection.addListener("close", function() {
 		setTimeout(function() {
-			connection.connect(6000, "icms.owner.net");
-		}, 100);
+			connection.connect(process.ARGV[4], process.ARGV[5]) || null;
+		}, 0);
 	});
 	
 	connection.addListener("error", function(err) {
@@ -183,7 +198,7 @@ function client() {
 		connection.end();
 	});
 	
-	connection.connect(6000, "icms.owner.net");
+	connection.connect(process.ARGV[4], process.ARGV[5] || null);
 }
 
 var clients = parseInt(process.ARGV[3] || 1);

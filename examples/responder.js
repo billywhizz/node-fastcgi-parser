@@ -16,24 +16,38 @@ process.on('uncaughtException', function (err) {
 	log.write('Caught exception: ' + JSON.stringify(err, null, "\t") + "\n");
 });
 
-var output = "HTTP/1.1 200 OK\r\nContent-Length: 10\r\nContent-Type: text/plain\r\n\r\n0123456789";
+var output = new Buffer("HTTP/1.1 200 OK\r\nContent-Length: 10\r\nContent-Type: text/plain\r\n\r\n0123456789");
 
 watcher = new IOWatcher();
 watcher.callback = function() {
 	var peerInfo = process.binding('net').accept(0);
 	clientfd = peerInfo.fd;
-	//log.write("accept: " + JSON.stringify(peerInfo, null, "\t") + "\n");
 	var s = new net.Stream(clientfd);
 	var parser = new fastcgi.parser();
+	parser.encoding = "binary";
 	var writer = new fastcgi.writer();
+	writer.encoding = "binary";
 
+	var header = {
+		"version": fastcgi.constants.version,
+		"type": fastcgi.constants.record.FCGI_STDOUT,
+		"recordId": 0,
+		"contentLength": 0,
+		"paddingLength": 0
+	};
+	var end = {
+		"status": 0,
+		"protocolStatus": 200
+	};
+	var plen = output.length;
+	
 	parser.onError = function(exception) {
 		log.write(JSON.stringify(exception, null, "\t"));
 	};
 
 	parser.onRecord = function(record) {
 		recordId = record.header.recordId;
-		//log.write("record: [\n" + JSON.stringify(record, null, "\t") + "]\n");
+		header.recordId = recordId;
 		switch(record.header.type) {
 			case fastcgi.constants.record.FCGI_BEGIN:
 				s.keepalive = (record.body.flags == 1);
@@ -42,34 +56,18 @@ watcher.callback = function() {
 				break;
 			case fastcgi.constants.record.FCGI_STDIN:
 				if(record.header.contentLength == 0) {
-					writer.writeHeader({
-						"version": fastcgi.constants.version,
-						"type": fastcgi.constants.record.FCGI_STDOUT,
-						"recordId": record.header.recordId,
-						"contentLength": output.length,
-						"paddingLength": 0
-					});
+					header.type = fastcgi.constants.record.FCGI_STDOUT;
+					header.contentLength = plen;
+					writer.writeHeader(header);
 					writer.writeBody(output);
 					s.write(writer.tobuffer());
-					writer.writeHeader({
-						"version": fastcgi.constants.version,
-						"type": fastcgi.constants.record.FCGI_STDOUT,
-						"recordId": record.header.recordId,
-						"contentLength": 0,
-						"paddingLength": 0
-					});
+					header.contentLength = 0;
+					writer.writeHeader(header);
 					s.write(writer.tobuffer());
-					writer.writeHeader({
-						"version": fastcgi.constants.version,
-						"type": fastcgi.constants.record.FCGI_END,
-						"recordId": record.header.recordId,
-						"contentLength": 8,
-						"paddingLength": 0
-					});
-					writer.writeEnd({
-						"status": 0,
-						"protocolStatus": 200
-					});
+					header.type = fastcgi.constants.record.FCGI_END;
+					header.contentLength = 8;
+					writer.writeHeader(header);
+					writer.writeEnd(end);
 					s.write(writer.tobuffer());
 					if(!s.keepalive) {
 						s.end();
@@ -80,15 +78,15 @@ watcher.callback = function() {
 	};
 	
 	s.ondata = function (buffer, start, end) {
-		parser.execute(buffer.slice(start, end));
+		parser.execute(buffer, start, end);
 	};
 
 	s.on("end", function() {
-		log.write("end\n");
+		//log.write("end\n");
 	});
 
 	s.on("close", function(had_error) {
-		log.write("close\n");
+		//log.write("close\n");
 	});
 
 	s.resume();
