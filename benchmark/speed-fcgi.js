@@ -6,12 +6,13 @@ var buffers = [];
 var bytes = 0;
 
 var parser = new fastcgi.parser();
+var mode = process.ARGV[2];
 
-var log = fs.createReadStream(process.ARGV[2], {
+var log = fs.createReadStream("fastcgi." + mode, {
 	"flags": "r",
 	"encoding": null,
 	"mode": 0755,
-	"bufferSize": process.ARGV[3]
+	"bufferSize": parseInt(process.ARGV[3]) * 1024
 });
 
 log.addListener("data", function(buff) {
@@ -27,19 +28,16 @@ log.addListener("end", function() {
 	console.log("total: " + rec);
 });
 
-/*  
-parser.onParam = function(name, value) {
-
-};
-
-parser.onHeader = function(header) {
-
-};
-*/
+var FCGI_END = fastcgi.constants.record.FCGI_END;
+var FCGI_STDIN = fastcgi.constants.record.FCGI_STDIN;
 
 parser.onRecord = function(record) {
-	//console.log(JSON.stringify(record));
-	rec++;
+	if(((mode == "out") && (record.header.type == FCGI_END))) {
+		rec++;
+	}
+	else if(((mode == "in") && (record.header.type == FCGI_STDIN) && record.header.contentLength == 0)) {
+		rec++;
+	}
 };
 
 parser.onError = function(err) {

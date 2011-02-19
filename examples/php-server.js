@@ -17,7 +17,7 @@ You can then run this example to fire requests at the php server
 You will need to change the SCRIPT_FILENAME param below to the full path of a script that is available to the php application
 */
 var params = [
-	["SCRIPT_FILENAME", "/source/phpinfo.php"],
+	["SCRIPT_FILENAME", "/usr/share/nginx/html/mediawiki/config/index.php"],
 	["QUERY_STRING", ""],
 	["REQUEST_METHOD", "GET"],
 	["CONTENT_TYPE", ""],
@@ -107,7 +107,7 @@ function client() {
 		connection.writer = new fastcgi.writer();
 		connection.parser = new fastcgi.parser();
 		connection.parser.onRecord = function(record) {
-			//console.log(JSON.stringify(record, null, "\t"));
+			console.log(JSON.stringify(record, null, "\t"));
 			count++;
 			recordId = record.header.recordId;
 		};
@@ -137,7 +137,7 @@ function client() {
 		setTimeout(function() {
 			//console.log("reconnect");
 			//connection.connect("/tmp/nginx.sock");
-			connection.connect(6000, "icms.owner.net");
+			//connection.connect(6000, "icms.owner.net");
 		}, 0);
 	});
 	

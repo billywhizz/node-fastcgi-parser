@@ -1,28 +1,32 @@
-var sys = require("sys");
 var fastcgi = require("../lib/fastcgi");
 var fs = require("fs");
 
 var parser = new fastcgi.parser();
-
+parser.encoding = "binary";
 parser.onParam = function(name, value) {
-	sys.puts("param\n" + name + ":" + value);
+	console.log("param\n" + name + ":" + value);
 };
 
 parser.onHeader = function(header) {
-	sys.puts("header\n" + JSON.stringify(header, null, "\t"));
+	console.log("header\n" + JSON.stringify(header, null, "\t"));
 };
 
 parser.onRecord = function(record) {
-	sys.puts("record\n" + JSON.stringify(record, null, "\t"));
+	console.log("record\n" + JSON.stringify(record, null, "\t"));
 };
 
 parser.onError = function(err) {
-	sys.puts("error\n" + JSON.stringify(err, null, "\t"));
+	console.log("error\n" + JSON.stringify(err, null, "\t"));
 	throw(err);
 };
 
-var writer = new fastcgi.writer();
+parser.onBody = function(buffer, start, end) {
+	console.log("chunk: " + (end-start));
+};
 
+var writer = new fastcgi.writer();
+writer.encoding = "utf8";
+//TODO: test encodings
 var message = "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 5\r\nContent-Type: text/plain\r\n\r\nhello";
 
 // out parser

@@ -1,6 +1,6 @@
 {
 	"name": "fastcgi-parser",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "FastCGI parser for low level parsing of the FastCGI protocol",
 	"keywords": "fastcgi,parser",
 	"author": "Andrew Johnston <apjohnsto@gmail.com>",

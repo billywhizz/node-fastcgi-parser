@@ -13,6 +13,7 @@ var params = [
 
 var testString = "This is a test string to be put through an FCGI_STDOUT record.";
 var imageData = require("fs").readFileSync(require("path").join(__dirname, "fixtures", "test.png"))
+var testStringUtf8 = "räksmörgås";
 
 var createParamsRecordTests = function() {
 	var context = {
@@ -124,8 +125,44 @@ vows.describe("FCGI Library").addBatch({
 		"and parsing it again": createParamsRecordTests()
 	},
 	
-	"when writing a simple FCGI_STDOUT": {
+	"when writing a utf8 string FCGI_STDOUT": {
 		topic: function() {
+			writer.encoding = "utf8";
+			writer.writeHeader({
+				"version": fastcgi.constants.version,
+				"type": fastcgi.constants.record.FCGI_STDOUT,
+				"recordId": 123,
+				"contentLength": testStringUtf8.length,
+				"paddingLength": 0
+			});
+			writer.writeBody(testStringUtf8);
+
+			return writer.tobuffer();
+		},
+		
+		"and parsing it again": {
+			topic: function(buffer) {
+				var parser = new fastcgi.parser();
+				parser.encoding = "ascii";
+				parser.onRecord = function(record) {
+					this.callback(null, record);
+				}.bind(this);
+				parser.execute(buffer);
+			},
+			
+			"we get a string body": function(record) {
+				assert.isString(record.body);
+			},
+			
+			"with the correct data": function(record) {
+				assert.equal(record.body, testStringUtf8);
+			}
+		}
+	},
+	
+	"when writing an ascii string FCGI_STDOUT": {
+		topic: function() {
+			writer.encoding = "ascii";
 			writer.writeHeader({
 				"version": fastcgi.constants.version,
 				"type": fastcgi.constants.record.FCGI_STDOUT,
@@ -141,6 +178,7 @@ vows.describe("FCGI Library").addBatch({
 		"and parsing it again": {
 			topic: function(buffer) {
 				var parser = new fastcgi.parser();
+				parser.encoding = "ascii";
 				parser.onRecord = function(record) {
 					this.callback(null, record);
 				}.bind(this);
@@ -159,6 +197,7 @@ vows.describe("FCGI Library").addBatch({
 	
 	"when writing a binary FCGI_STDOUT": {
 		topic: function() {
+			writer.encoding = "binary";
 			writer.writeHeader({
 				"version": fastcgi.constants.version,
 				"type": fastcgi.constants.record.FCGI_STDOUT,

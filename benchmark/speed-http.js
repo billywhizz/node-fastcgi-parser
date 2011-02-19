@@ -11,7 +11,7 @@ var log = fs.createReadStream(process.ARGV[2], {
 	"flags": "r",
 	"encoding": null,
 	"mode": 0755,
-	"bufferSize": process.ARGV[3]
+	"bufferSize": parseInt(process.ARGV[3] * 1024)
 });
 
 log.addListener("data", function(buffer) {
