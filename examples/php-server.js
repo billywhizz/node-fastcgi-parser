@@ -17,7 +17,7 @@ You can then run this example to fire requests at the php server
 You will need to change the SCRIPT_FILENAME param below to the full path of a script that is available to the php application
 */
 var params = [
-	["SCRIPT_FILENAME", "/var/www/html/www.permanentrevolution.net/index.php"],
+	["SCRIPT_FILENAME", "/var/www/html/index.php"],
 	["QUERY_STRING", ""],
 	["REQUEST_METHOD", "GET"],
 	["CONTENT_TYPE", ""],
